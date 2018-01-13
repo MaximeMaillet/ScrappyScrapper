@@ -1,13 +1,37 @@
-/**
- * Created by MaximeMaillet on 03/06/2017.
- */
 'use strict';
 
-var debug = require('debug');
-var lServer = debug('ScrappyScrapper.index');
+const debug = require('debug');
+const lServer = debug('ScrappyScrapper:index');
 
+/**
+ * @param cnf
+ */
+module.exports = (cnf) => {
+  const worker = require('./src/worker');
+  const module = {
+    'config': checkConfig(cnf),
+  };
 
-var engine = require('./engine');
+  /**
+   * Scrapper, which relaunch every hour
+   */
+  module.start = () => {
+    for (const i in module.config) {
+      worker.start(module.config[i]);
+    }
+
+    if (!module.config.oneShot) {
+      setInterval(() => {
+        for (const i in module.config) {
+          worker.start(module.config[i]);
+        }
+      },
+      3600 * 1000);
+    }
+  };
+
+  return module;
+};
 
 /**
  * Method for check one config item
@@ -15,85 +39,55 @@ var engine = require('./engine');
  * @returns {*}
  */
 function checkConfig(config) {
-	lServer("Start config checking");
-	for(let i in config) {
+  lServer('Start config checking');
+  for (const i in config) {
 
-		let cnf = Object.assign({
-			'interval': 500,
-			'oneShot': false
-		}, config[i]);
+    const cnf = Object.assign({
+      'interval': 500,
+      'oneShot': false
+    }, config[i]);
 
-		if(cnf.baseUrl === undefined) {
-			throw new Error("Config failed : baseUrl is not defined")
-		}
+    if (cnf.baseUrl === undefined) {
+      throw new Error('Config failed : baseUrl is not defined');
+    }
 
-		if(cnf.worker === undefined) {
-			throw new Error("Config failed : worker is not defined");
-		}
-		else {
-			if(cnf.worker.scrapPattern === undefined) {
-				throw new Error("Config failed (bad worker) : array scrapPattern is not defined");
-			}
+    if (cnf.worker === undefined) {
+      throw new Error('Config failed : worker is not defined');
+    }
+    else {
+      if (cnf.worker.scrapPattern === undefined) {
+        throw new Error('Config failed (bad worker) : array scrapPattern is not defined');
+      }
 
-			if(!Array.isArray(cnf.worker.scrapPattern)) {
-				throw new Error("Config failed (bad worker) : scrapPattern is not an array");
-			}
-			else {
-				if(cnf.worker.scrapPattern.length === 0) {
-					throw new Error("Config failed (bad worker) : scrapPattern is empty");
-				}
-			}
+      if (!Array.isArray(cnf.worker.scrapPattern)) {
+        throw new Error('Config failed (bad worker) : scrapPattern is not an array');
+      }
+      else {
+        if (cnf.worker.scrapPattern.length === 0) {
+          throw new Error('Config failed (bad worker) : scrapPattern is empty');
+        }
+      }
 
-			if(cnf.worker.start === undefined) {
-				throw new Error("Config failed (bad worker) : function start() is not defined");
-			}
+      if (cnf.worker.start === undefined) {
+        throw new Error('Config failed (bad worker) : function start() is not defined');
+      }
 
-			if(cnf.worker.canScrapping === undefined) {
-				throw new Error("Config failed (bad workker) : function canScrapping() is not defined");
-			}
-		}
+      if (cnf.worker.canScrapping === undefined) {
+        throw new Error('Config failed (bad workker) : function canScrapping() is not defined');
+      }
+    }
 
-		if(cnf.oneShot === undefined) {
-			lServer("Config default : oneShot = false");
-		}
+    if (cnf.oneShot === undefined) {
+      lServer('Config default : oneShot = false');
+    }
 
-		if(cnf.interval === undefined) {
-			lServer("Config default : interval = 500");
-		}
+    if (cnf.interval === undefined) {
+      lServer('Config default : interval = 500');
+    }
 
-		config[i] = cnf;
-	}
+    config[i] = cnf;
+  }
 
-	lServer("End config checking : OK");
-	return config;
+  lServer('End config checking : OK');
+  return config;
 }
-
-/**
- * @param cnf
- */
-module.exports = function(cnf) {
-	let worker = require('./worker');
-	let module = {
-		'config': checkConfig(cnf),
-	};
-
-	/**
-	 * Scrapper, which relaunch every hour
-	 */
-	module.start = function() {
-
-		for(let i in module.config) {
-			worker.start(module.config[i]);
-		}
-
-		if(!module.config.oneShot) {
-			setInterval(() => {
-				for(let i in module.config) {
-					worker.start(module.config[i]);
-				}
-			}, 3600*1000);
-		}
-	};
-
-	return module;
-};

@@ -1,19 +1,15 @@
-/**
- * Created by MaximeMaillet on 03/06/2017.
- */
+'use strict';
 
-"use strict";
+const xmlParser = require('xml2js');
+const hh = require('http-https');
 
-
-var xmlParser = require('xml2js');
-var hh = require('http-https');
 /**
  * @deprecated
  * @type {"path"}
  */
-let path = require('path');
+const path = require('path');
 
-var customScrapSite, baseUrl;
+let customScrapSite, baseUrl;
 
 /**
  * Entrypoint : url html : http://jdjdjd
@@ -29,15 +25,15 @@ var customScrapSite, baseUrl;
 
 const {promisify} = require('util');
 
-let cbZlib = require('zlib');
-let contentType = require('content-type');
-let urlParser = require('url');
-let engine = require('./engine');
-let debug = require('debug');
+const cbZlib = require('zlib');
+const contentType = require('content-type');
+const urlParser = require('url');
+const engine = require('./engine');
+const debug = require('debug');
 
-let lWorker = debug('ScrappyScrapper.engine.debug');
-let lError = debug('ScrappyScrapper.engine.error');
-let urlToScrap = [];
+const lWorker = debug('ScrappyScrapper:engine:debug');
+const lError = debug('ScrappyScrapper:engine:error');
+const urlToScrap = [];
 let tooManyRequestMode = false;
 
 /**
@@ -46,14 +42,14 @@ let tooManyRequestMode = false;
  */
 module.exports.start = (config) => {
 
-	lWorker("Start engine");
+	lWorker('Start engine');
 	customScrapSite = config.worker;
-	baseUrl = config.baseUrl;
+	const { baseUrl } = config;
 
 	urlToScrap.push(baseUrl);
-	urlToScrap.push(baseUrl+'/sitemap.xml');
+	urlToScrap.push(`${baseUrl}/sitemap.xml`);
 
-	setInterval(function() {
+	setInterval(() => {
 		scrapArrayUrl();
 	}, config.interval);
 };
@@ -64,9 +60,9 @@ module.exports.start = (config) => {
 function scrapArrayUrl() {
 
 	if(tooManyRequestMode) {
-		setInterval(function() {
+		setInterval(() => {
 			tooManyRequestMode = false;
-		}, 5000)
+		}, 5000);
 	}
 
 	if(urlToScrap.length > 0 && !tooManyRequestMode) {
@@ -83,29 +79,29 @@ function scrapArrayUrl() {
  */
 function getUrl(url) {
 
-	let urlParsed = urlParser.parse(url);
+	const urlParsed = urlParser.parse(url);
 
 	if (urlParsed.hostname === null) {
-		lError("Url whitout hostname : %s", url);
+		lError('Url whitout hostname : %s', url);
 		return;
 	}
 
 	if (urlParsed.protocol !== 'http:' && urlParsed.protocol !== 'https:') {
-		lError("Bad protocol : %s", urlParsed.protocol);
+		lError('Bad protocol : %s', urlParsed.protocol);
 		return;
 	}
 
-	let req = hh.request(url, function (res) {
+	const req = hh.request(url, (res) => {
 		if (res.statusCode >= 300 && res.statusCode < 400) {
 			return getUrl(res.headers.location);
 		} else if(res.statusCode === 429) {
 			tooManyRequestMode = true;
 		} else if (res.statusCode >= 200 && res.statusCode < 300) {
 
-			let contentTypeUrl = contentType.parse(res.headers['content-type']);
-			let chunks = [];
+			const contentTypeUrl = contentType.parse(res.headers['content-type']);
+			const chunks = [];
 
-			let out = function(buffer) {
+			const out = function(buffer) {
 				if(contentTypeUrl.type === 'application/xml') {
 					scrapXmlData(buffer.toString());
 				} else if(contentTypeUrl.type === 'application/octet-stream') {
@@ -115,23 +111,23 @@ function getUrl(url) {
 				}
 			};
 
-			res.on('data', function (chunk) {
+			res.on('data', (chunk) => {
 				chunks.push(chunk);
 			});
 
-			res.on('end', function() {
-				let buffer = Buffer.concat(chunks);
+			res.on('end', () => {
+				const buffer = Buffer.concat(chunks);
 				out(buffer);
 			});
 		} else {
-			lError("Status not accepted (%s) : %s", res.statusCode, url);
+			lError('Status not accepted (%s) : %s', res.statusCode, url);
 			urlToScrap.push(url);
 		}
 	});
 
 	req.on('error', (e) => {
 		urlToScrap.push(url);
-		lError("Problem with url : %s, Request: %s", url, e.message);
+		lError('Problem with url : %s, Request: %s', url, e.message);
 	});
 
 	req.end();
@@ -142,20 +138,20 @@ function getUrl(url) {
  * @param xml
  */
 function scrapXmlData(xml) {
-	let parseString = xmlParser.parseString;
-	parseString(xml, function (err, result) {
+	const parseString = xmlParser.parseString;
+	parseString(xml, (err, result) => {
 		if(err) {
 			return false;
 		}
 
 		if(result.sitemapindex !== undefined) {
-			result.sitemapindex.sitemap.forEach(function(sitemap) {
+			result.sitemapindex.sitemap.forEach((sitemap) => {
 				urlToScrap.push(sitemap.loc[0]);
 			});
 		}
 
 		if(result.urlset !== undefined) {
-			result.urlset.url.forEach(function(sitemap) {
+			result.urlset.url.forEach((sitemap) => {
 				urlToScrap.push(sitemap.loc[0]);
 			});
 		}
@@ -170,7 +166,7 @@ function scrapXmlData(xml) {
  * @param buffer
  */
 function decompressGzFromBuffer(buffer) {
-	cbZlib.unzip(buffer, function(err, data) {
+	cbZlib.unzip(buffer, (err, data) => {
 		scrapXmlData(data.toString());
 	});
 }
@@ -187,7 +183,7 @@ async function scrapFromBody(url, body) {
 		scrapLinks($);
 		await correspondToPattern(url);
 		await customScrapSite.canScrapping(url);
-		lWorker("Launch scrapping %s", url);
+		lWorker('Launch scrapping %s', url);
 		customScrapSite.start(url, $);
 
 		$ = null;
@@ -209,7 +205,7 @@ async function scrapFromUrl(url) {
 		await correspondToPattern(url);
 		await customScrapSite.canScrapping(url);
 
-		lWorker("Launch scrapping %s", url);
+		lWorker('Launch scrapping %s', url);
 		customScrapSite.start(url, $);
 
 		$ = null;
@@ -226,16 +222,16 @@ async function scrapFromUrl(url) {
  */
 function correspondToPattern(url) {
 	return new Promise((resolve, reject) => {
-		let urlDomain = formatUrl(url);
+		const urlDomain = formatUrl(url);
 		if(urlDomain !== null) {
-			customScrapSite.scrapPattern.forEach(function(pattern) {
+			customScrapSite.scrapPattern.forEach((pattern) => {
 				if(pattern.exec(urlDomain.endpoint) !== null) {
 					resolve();
 				}
 			});
 		}
 
-		reject("Url does not corresponding to custom pattern : %s", url);
+		reject('Url does not corresponding to custom pattern : %s', url);
 	});
 }
 
@@ -245,7 +241,7 @@ function correspondToPattern(url) {
  */
 function scrapLinks($) {
 	$('a').each(function() {
-		let urlDomain = formatUrl($(this).attr('href'));
+		const urlDomain = formatUrl($(this).attr('href'));
 		urlToScrap.push(urlDomain.url);
 	});
 }
@@ -256,8 +252,8 @@ function scrapLinks($) {
  * @returns {*}
  */
 function formatUrl(url) {
-	let domainRegex = /^(?:https?:\/\/)?(?:[^@\n]+@)?(?:www\.)?([^:\/\n]+)(.+)/im;
-	let matches = domainRegex.exec(url);
+	const domainRegex = /^(?:https?:\/\/)?(?:[^@\n]+@)?(?:www\.)?([^:\/\n]+)(.+)/im;
+	const matches = domainRegex.exec(url);
 	if(matches === null) {
 		return {url: baseUrl+url, endpoint: url};
 	}

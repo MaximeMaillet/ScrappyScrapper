@@ -4,6 +4,7 @@
   "description": "Custom html scrapper ",
   "main": "index.js",
   "scripts": {
+    "start": "node index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
@@ -30,5 +31,8 @@
     "request-promise": "^4.2.1",
     "xml2js": "^0.4.17",
     "zlib": "^1.0.5"
+  },
+  "devDependencies": {
+    "eslint": "^4.15.0"
   }
 }

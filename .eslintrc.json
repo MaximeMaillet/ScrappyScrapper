@@ -1,0 +1,51 @@
+{
+  "env": {
+    "es6": true,
+    "node": true,
+    "mocha": true
+  },
+  "extends": "eslint:recommended",
+  "parserOptions": {
+    "ecmaVersion": 8
+  },
+  "rules": {
+    "no-unused-vars": [
+      "warn", {
+        "vars": "all",
+        "args": "after-used",
+        "ignoreRestSiblings": false
+      }
+    ],
+    "prefer-destructuring": ["warn", {
+      "array": true,
+      "object": true
+    }, {
+      "enforceForRenamedProperties": false
+    }],
+    "indent": [
+      "off",
+      2
+    ],
+    "linebreak-style": [
+      "error",
+      "unix"
+    ],
+    "quotes": [
+      "error",
+      "single"
+    ],
+    "semi": [
+      "error",
+      "always"
+    ],
+    "prefer-template": [
+      "error"
+    ],
+    "prefer-arrow-callback": [
+      "error"
+    ],
+    "prefer-const": [ "error" ],
+    "no-var": [ "error" ],
+    "space-before-function-paren": ["error", "never"]
+  }
+}
