@@ -2,35 +2,29 @@
 
 const debug = require('debug');
 const lServer = debug('ScrappyScrapper:index');
+let config = [];
 
 /**
  * @param cnf
  */
-module.exports = (cnf) => {
+module.exports.init = (cnf) => {
+  config = checkConfig(cnf);
+
+  return module.exports;
+};
+
+module.exports.start = () => {
   const worker = require('./src/worker');
-  const module = {
-    'config': checkConfig(cnf),
-  };
+  for(const i in config) {
 
-  /**
-   * Scrapper, which relaunch every hour
-   */
-  module.start = () => {
-    for (const i in module.config) {
-      worker.start(module.config[i]);
-    }
+    worker.start(config[i]);
 
-    if (!module.config.oneShot) {
+    if (!config[i].oneShot) {
       setInterval(() => {
-        for (const i in module.config) {
-          worker.start(module.config[i]);
-        }
-      },
-      3600 * 1000);
+          worker.start(config[i]);
+      }, config[i].interval);
     }
-  };
-
-  return module;
+  }
 };
 
 /**
@@ -55,25 +49,8 @@ function checkConfig(config) {
       throw new Error('Config failed : worker is not defined');
     }
     else {
-      if (cnf.worker.scrapPattern === undefined) {
-        throw new Error('Config failed (bad worker) : array scrapPattern is not defined');
-      }
-
-      if (!Array.isArray(cnf.worker.scrapPattern)) {
-        throw new Error('Config failed (bad worker) : scrapPattern is not an array');
-      }
-      else {
-        if (cnf.worker.scrapPattern.length === 0) {
-          throw new Error('Config failed (bad worker) : scrapPattern is empty');
-        }
-      }
-
       if (cnf.worker.start === undefined) {
         throw new Error('Config failed (bad worker) : function start() is not defined');
-      }
-
-      if (cnf.worker.canScrapping === undefined) {
-        throw new Error('Config failed (bad workker) : function canScrapping() is not defined');
       }
     }
 

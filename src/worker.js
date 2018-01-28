@@ -1,137 +1,144 @@
 'use strict';
 
 const xmlParser = require('xml2js');
-const hh = require('http-https');
-
-/**
- * @deprecated
- * @type {"path"}
- */
-const path = require('path');
-
 let customScrapSite, baseUrl;
 
-/**
- * Entrypoint : url html : http://jdjdjd
- * Scrap entrypoint
- * 	find urls html with pattern
- * 		push
- * Scrap sitemap
- * 	recursive to find html
- * 		find url with pattern
- * 			push
- *
- */
-
-const {promisify} = require('util');
-
 const cbZlib = require('zlib');
-const contentType = require('content-type');
-const urlParser = require('url');
-const engine = require('./engine');
 const debug = require('debug');
 
 const lWorker = debug('ScrappyScrapper:engine:debug');
-const lError = debug('ScrappyScrapper:engine:error');
 const urlToScrap = [];
+
+
+
+
+
+
+const {body: scrapBody} = require('./scrap');
+const {send} = require('./request');
+
+let workerInterval = null;
 let tooManyRequestMode = false;
 
 /**
- * Entry point of worker
+ * Entry point of worker, which only scrap
+ * {
+ *   baseUrl: 'https://www.songkick.com',
+ * }
  * @param config
  */
-module.exports.start = (config) => {
-
+module.exports.start = async(config) => {
 	lWorker('Start engine');
-	customScrapSite = config.worker;
-	const { baseUrl } = config;
+	const { entrypoint } = config;
+	baseUrl = config.baseUrl;
+  customScrapSite = config.worker;
 
-	urlToScrap.push(baseUrl);
-	urlToScrap.push(`${baseUrl}/sitemap.xml`);
+  try {
+    const $ = await send(entrypoint);
+    findLinks($);
 
-	setInterval(() => {
-		scrapArrayUrl();
-	}, config.interval);
+    workerInterval = setInterval(() => {
+      scrapAll();
+    }, 500);
+
+    const garbage = setInterval(() => {
+      if(urlToScrap.length === 0) {
+        console.log('End scrapping');
+        clearInterval(workerInterval);
+        clearInterval(garbage);
+      }
+    }, 10000);
+
+  } catch(err) {
+    console.log(`Fail entrypoint ${err.message}`);
+  }
 };
 
 /**
- * List url for scrapped
+ * Find all links into body
+ * @param $
+ * @return {Promise.<void>}
  */
-function scrapArrayUrl() {
-
-	if(tooManyRequestMode) {
-		setInterval(() => {
-			tooManyRequestMode = false;
-		}, 5000);
-	}
-
-	if(urlToScrap.length > 0 && !tooManyRequestMode) {
-		for(let i=0; i<100 && i<urlToScrap.length; i++) {
-			getUrl(urlToScrap[i]);
-			urlToScrap.splice(i, 1);
-		}
-	}
+async function findLinks($) {
+  $('a').each(function() {
+    const urlDomain = formatUrl($(this).attr('href'));
+    urlToScrap.push(urlDomain.url);
+  });
 }
 
 /**
- * send GET request to url
- * @param url
+ * List all Url to scrap and launch new promise for execute scrap for one url
+ * @return {Promise.<void>}
  */
-function getUrl(url) {
+async function scrapAll() {
+  if(tooManyRequestMode) {
+    setInterval(() => {
+      tooManyRequestMode = false;
+    }, 10000);
+  }
 
-	const urlParsed = urlParser.parse(url);
-
-	if (urlParsed.hostname === null) {
-		lError('Url whitout hostname : %s', url);
-		return;
-	}
-
-	if (urlParsed.protocol !== 'http:' && urlParsed.protocol !== 'https:') {
-		lError('Bad protocol : %s', urlParsed.protocol);
-		return;
-	}
-
-	const req = hh.request(url, (res) => {
-		if (res.statusCode >= 300 && res.statusCode < 400) {
-			return getUrl(res.headers.location);
-		} else if(res.statusCode === 429) {
-			tooManyRequestMode = true;
-		} else if (res.statusCode >= 200 && res.statusCode < 300) {
-
-			const contentTypeUrl = contentType.parse(res.headers['content-type']);
-			const chunks = [];
-
-			const out = function(buffer) {
-				if(contentTypeUrl.type === 'application/xml') {
-					scrapXmlData(buffer.toString());
-				} else if(contentTypeUrl.type === 'application/octet-stream') {
-					decompressGzFromBuffer(buffer);
-				} else if(contentTypeUrl.type === 'text/html') {
-					scrapFromBody(url, buffer.toString());
-				}
-			};
-
-			res.on('data', (chunk) => {
-				chunks.push(chunk);
-			});
-
-			res.on('end', () => {
-				const buffer = Buffer.concat(chunks);
-				out(buffer);
-			});
-		} else {
-			lError('Status not accepted (%s) : %s', res.statusCode, url);
-			urlToScrap.push(url);
-		}
-	});
-
-	req.on('error', (e) => {
-		urlToScrap.push(url);
-		lError('Problem with url : %s, Request: %s', url, e.message);
-	});
-
-	req.end();
+  if(!tooManyRequestMode && urlToScrap.length > 0) {
+    for(let i=0; i<100 && i<urlToScrap.length; i++) {
+      scrapUrl(urlToScrap[i]);
+      urlToScrap.splice(i, 1);
+    }
+  }
 }
+
+/**
+ * Scrap one url
+ * @param url
+ * @return {Promise.<void>}
+ */
+async function scrapUrl(url) {
+  try {
+    const $ = await send(url);
+    await correspondToPattern(url);
+    console.log(`Launch scrapping ${url}`);
+    customScrapSite.start(url, $);
+  } catch(err) {
+    console.log(`Fail for ${url} : ${err.message}`);
+  }
+}
+
+/**
+ * Get custom pattern for check url
+ * @param url
+ * @returns {Promise}
+ */
+function correspondToPattern(url) {
+  return new Promise((resolve, reject) => {
+    const urlDomain = formatUrl(url);
+    if(urlDomain !== null) {
+      customScrapSite.scrapPattern.forEach((pattern) => {
+        if(pattern.exec(urlDomain.endpoint) !== null) {
+          resolve();
+        }
+      });
+    }
+
+    reject('Url does not corresponding to custom pattern : %s', url);
+  });
+}
+
+/**
+ * Format URL for return domain + endpoint
+ * @param url
+ * @returns {*}
+ */
+function formatUrl(url) {
+  const domainRegex = /^(?:https?:\/\/)?(?:[^@\n]+@)?(?:www\.)?([^:\/\n]+)(.+)/im;
+  const matches = domainRegex.exec(url);
+  if(matches === null) {
+    return {url: baseUrl+url, endpoint: url};
+  }
+  else {
+    return {url: matches[0], endpoint: matches[2]};
+  }
+}
+
+
+
 
 /**
  * Scrap xml data
@@ -171,93 +178,5 @@ function decompressGzFromBuffer(buffer) {
 	});
 }
 
-/**
- * Start scrapping from body
- * @param url
- * @param body
- */
-async function scrapFromBody(url, body) {
 
-	try {
-		let $ = await engine.transform(body);
-		scrapLinks($);
-		await correspondToPattern(url);
-		await customScrapSite.canScrapping(url);
-		lWorker('Launch scrapping %s', url);
-		customScrapSite.start(url, $);
 
-		$ = null;
-
-	} catch(e) {
-		lError(e);
-	}
-}
-
-/**
- * Start scrapping from url
- * @param url
- */
-async function scrapFromUrl(url) {
-
-	try {
-		let $ = await engine.scrap(url);
-		scrapLinks($);
-		await correspondToPattern(url);
-		await customScrapSite.canScrapping(url);
-
-		lWorker('Launch scrapping %s', url);
-		customScrapSite.start(url, $);
-
-		$ = null;
-
-	} catch(e) {
-		console.error(e);
-	}
-}
-
-/**
- * Get custom pattern for check url
- * @param url
- * @returns {Promise}
- */
-function correspondToPattern(url) {
-	return new Promise((resolve, reject) => {
-		const urlDomain = formatUrl(url);
-		if(urlDomain !== null) {
-			customScrapSite.scrapPattern.forEach((pattern) => {
-				if(pattern.exec(urlDomain.endpoint) !== null) {
-					resolve();
-				}
-			});
-		}
-
-		reject('Url does not corresponding to custom pattern : %s', url);
-	});
-}
-
-/**
- * Scrap page for found link
- * @param $
- */
-function scrapLinks($) {
-	$('a').each(function() {
-		const urlDomain = formatUrl($(this).attr('href'));
-		urlToScrap.push(urlDomain.url);
-	});
-}
-
-/**
- * Format URL for return domain + endpoint
- * @param url
- * @returns {*}
- */
-function formatUrl(url) {
-	const domainRegex = /^(?:https?:\/\/)?(?:[^@\n]+@)?(?:www\.)?([^:\/\n]+)(.+)/im;
-	const matches = domainRegex.exec(url);
-	if(matches === null) {
-		return {url: baseUrl+url, endpoint: url};
-	}
-	else {
-		return {url: matches[0], endpoint: matches[2]};
-	}
-}

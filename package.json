@@ -1,6 +1,6 @@
 {
   "name": "scrappy-scrapper",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "description": "Custom html scrapper ",
   "main": "index.js",
   "scripts": {
@@ -28,7 +28,7 @@
     "http-https": "^1.0.0",
     "path": "^0.12.7",
     "request": "^2.81.0",
-    "request-promise": "^4.2.1",
+    "request-promise": "^4.2.2",
     "xml2js": "^0.4.17",
     "zlib": "^1.0.5"
   },
