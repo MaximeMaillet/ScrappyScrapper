@@ -94,10 +94,9 @@ async function scrapUrl(url) {
   try {
     const $ = await send(url);
     await correspondToPattern(url);
-    console.log(`Launch scrapping ${url}`);
     customScrapSite.start(url, $);
   } catch(err) {
-    console.log(`Fail for ${url} : ${err.message}`);
+    // console.log(`Fail for ${url} : ${err.message}`);
   }
 }
 
