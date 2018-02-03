@@ -21,7 +21,7 @@ module.exports.start = () => {
 
     if (!config[i].oneShot) {
       setInterval(() => {
-          worker.start(config[i]);
+        worker.start(config[i]);
       }, config[i].interval);
     }
   }

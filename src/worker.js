@@ -28,13 +28,14 @@ let tooManyRequestMode = false;
  * @param config
  */
 module.exports.start = async(config) => {
-	lWorker('Start engine');
-	const { entrypoint } = config;
-	baseUrl = config.baseUrl;
+  lWorker('Start engine');
+  const { entrypoint } = config;
+  baseUrl = config.baseUrl;
   customScrapSite = config.worker;
 
   try {
     const $ = await send(entrypoint);
+    urlToScrap.push(entrypoint);
     findLinks($);
 
     workerInterval = setInterval(() => {
@@ -96,7 +97,7 @@ async function scrapUrl(url) {
     await correspondToPattern(url);
     customScrapSite.start(url, $);
   } catch(err) {
-    // console.log(`Fail for ${url} : ${err.message}`);
+    console.log(`Fail for ${url} : ${err.message}`);
   }
 }
 
